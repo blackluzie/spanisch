@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>¡Hola! Spanisch – Costa Brava</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#c60b1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Español">
+  <link rel="apple-touch-icon" href="./icons/icon.svg">
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <div id="app">
+    <div class="loading">
+      <div class="loading-flag">🇪🇸</div>
+      <p>Cargando…</p>
+    </div>
+  </div>
+  <script src="./js/data.js"></script>
+  <script src="./js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
