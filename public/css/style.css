@@ -272,6 +272,21 @@ body {
 .fc-btn.wrong  { background: #fee2e2; color: #c60b1e; }
 .fc-btn.right  { background: #dcfce7; color: #166534; }
 .fc-btn:disabled { opacity: .4; cursor: not-allowed; }
+.fc-btn.wide { flex: 1; }
+.fc-card-scene { cursor: default; }
+.fc-input {
+  width: 100%; max-width: 380px; padding: .9rem 1rem; font-size: 1.1rem;
+  border: 2px solid #e5e7eb; border-radius: 1rem; text-align: center;
+  background: #fff; color: #1a1a2e; box-sizing: border-box;
+}
+.fc-input:focus { outline: none; border-color: #c60b1e; }
+.fc-feedback {
+  width: 100%; max-width: 380px; padding: .9rem 1rem; border-radius: 1rem;
+  text-align: center; font-weight: 700; font-size: 1rem;
+}
+.fc-feedback.ok { background: #dcfce7; color: #166534; }
+.fc-feedback.no { background: #fee2e2; color: #c60b1e; }
+.fc-feedback small { display: block; font-weight: 400; font-size: .85rem; margin-top: .25rem; }
 
 /* === Quiz === */
 .quiz-wrap { padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; }

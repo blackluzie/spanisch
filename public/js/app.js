@@ -10,6 +10,7 @@ const S = {
   category: null,
   prevView: 'home',
   cards: [], cardIdx: 0, cardFlipped: false, cardResults: [],
+  cardTyped: '', cardAnswered: false, cardAnswerOk: false,
   quizQ: [], quizIdx: 0, quizSel: null, quizScore: 0,
   quizCorrectCount: 0, quizTimer: null, quizTime: 10,
   phraseCategory: 'greeting',
@@ -55,6 +56,12 @@ function render() {
     default:                   html = renderLogin();
   }
   app.innerHTML = html;
+  // Enter-Taste im Karten-Eingabefeld
+  const fcInput = document.getElementById('fcInput');
+  if (fcInput) {
+    fcInput.focus();
+    fcInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitCard(); });
+  }
 }
 
 function withNav(content) {
@@ -236,6 +243,7 @@ function startMode(mode, catId) {
   const words = [...all].sort(() => Math.random() - 0.5);
   if (mode === 'learn') {
     S.cards = words; S.cardIdx = 0; S.cardFlipped = false; S.cardResults = [];
+    S.cardTyped = ''; S.cardAnswered = false; S.cardAnswerOk = false;
     go('flashcards');
   } else {
     S.quizQ = words.slice(0, 15); S.quizIdx = 0; S.quizSel = null;
@@ -246,21 +254,56 @@ function startMode(mode, catId) {
 }
 
 /* === Flashcards === */
+function checkSpanish(input, answer) {
+  const norm = s => s.toLowerCase().trim()
+    .replace(/[¿¡.!?;:]/g, '')
+    .replace(/\b(der|die|das|ein|eine|the|a|an)\b/g, '')
+    .replace(/\s+/g, ' ').trim();
+  const inp = norm(input);
+  if (!inp) return false;
+  // Akzent-unempfindlicher Vergleich
+  const noAccent = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const variants = answer.split(/[;,/]/).map(v => norm(v)).filter(Boolean);
+  return variants.some(v => noAccent(inp) === noAccent(v) || inp === v);
+}
+
 function renderFlashcards() {
   if (!S.cards.length) return '<div style="padding:2rem;text-align:center">Keine Karten</div>';
   if (S.cardIdx >= S.cards.length) return '';
   const card = S.cards[S.cardIdx];
   const pct = Math.round((S.cardIdx / S.cards.length) * 100);
+  const frontLang = S.category === 'catalan' ? 'Katalanisch' : 'Spanisch';
+
+  let inputArea, actions;
+  if (S.cardAnswered) {
+    const ok = S.cardAnswerOk;
+    inputArea = `<div class="fc-feedback ${ok ? 'ok' : 'no'}">
+      ${ok ? '✓ Richtig!' : '✗ Leider falsch'}
+      ${!ok ? `<small>Richtig: ${esc(card.de)}</small>` : ''}
+      ${S.cardTyped && !ok ? `<small style="color:#6b7280">Deine Antwort: ${esc(S.cardTyped)}</small>` : ''}
+    </div>`;
+    actions = `<div class="fc-actions">
+      ${!ok ? `<button class="fc-btn wrong" onclick="answerCard(false)">&#10060; Als falsch</button>` : ''}
+      <button class="fc-btn right wide" onclick="answerCard(${ok ? 'true' : 'false'})">Weiter →</button>
+    </div>`;
+  } else {
+    inputArea = `<input id="fcInput" class="fc-input" type="text" autocomplete="off"
+      autocorrect="off" autocapitalize="off" spellcheck="false"
+      placeholder="Deutsche Übersetzung…">`;
+    actions = `<div class="fc-actions">
+      <button class="fc-btn right wide" onclick="submitCard()">Aufdecken →</button>
+    </div>`;
+  }
+
   return `
     <div class="flashcard-wrap">
       <div class="fc-progress-text">${S.cardIdx + 1} / ${S.cards.length}</div>
       <div class="fc-progress-bar"><div class="fc-progress-fill" style="width:${pct}%"></div></div>
-      <div class="fc-card-scene" onclick="flipCard()">
+      <div class="fc-card-scene">
         <div class="fc-card${S.cardFlipped ? ' flipped' : ''}">
           <div class="fc-front">
-            <div class="fc-lang">${S.category === 'catalan' ? 'Katalanisch' : 'Spanisch'}</div>
+            <div class="fc-lang">${frontLang}</div>
             <div class="fc-word">${esc(card.es)}</div>
-            <div class="fc-tap-hint">Tippe zum Aufdecken 👆</div>
           </div>
           <div class="fc-back">
             <div class="fc-lang">Deutsch</div>
@@ -270,25 +313,39 @@ function renderFlashcards() {
           </div>
         </div>
       </div>
-      <div class="fc-actions">
-        <button class="fc-btn wrong" onclick="answerCard(false)" ${!S.cardFlipped?'disabled':''}>&#10060; Nochmal</button>
-        <button class="fc-btn right"  onclick="answerCard(true)"  ${!S.cardFlipped?'disabled':''}>&#10003; Gewusst!</button>
-      </div>
+      ${inputArea}
+      ${actions}
     </div>`;
 }
 
-function flipCard() { S.cardFlipped = !S.cardFlipped; render(); }
+function submitCard() {
+  const input = document.getElementById('fcInput');
+  const card = S.cards[S.cardIdx];
+  const typed = input ? input.value : '';
+  S.cardTyped = typed;
+  S.cardAnswerOk = checkSpanish(typed, card.de);
+  S.cardAnswered = true;
+  S.cardFlipped = true;
+  render();
+  // Kein autofocus mehr nötig
+}
 
 function answerCard(correct) {
   S.cardResults.push(correct);
   S.cardIdx++;
   S.cardFlipped = false;
+  S.cardAnswered = false;
+  S.cardTyped = '';
+  S.cardAnswerOk = false;
   if (S.cardIdx >= S.cards.length) {
     const corr = S.cardResults.filter(Boolean).length;
     api.addScore(S.category, 'cards', corr * 5, corr, S.cards.length)
       .then(res => { if (res.streak) S.streak = res.streak; });
     go('flashcards-result');
-  } else render();
+  } else {
+    render();
+    setTimeout(() => { document.getElementById('fcInput')?.focus(); }, 50);
+  }
 }
 
 /* === Quiz === */

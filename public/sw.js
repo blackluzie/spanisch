@@ -1,4 +1,4 @@
-const CACHE = 'spanisch-v2';
+const CACHE = 'spanisch-v3';
 const STATIC = [
   './index.html',
   './manifest.webmanifest',
