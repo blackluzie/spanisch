@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#4338ca"/>
+  <!-- House shape -->
+  <polygon points="96,30 160,80 160,160 32,160 32,80" fill="white" opacity="0.95"/>
+  <rect x="76" y="110" width="40" height="50" rx="4" fill="#4338ca"/>
+  <rect x="120" y="90" width="24" height="24" rx="4" fill="#4338ca" opacity="0.7"/>
+  <rect x="48" y="90" width="24" height="24" rx="4" fill="#4338ca" opacity="0.7"/>
+  <!-- Roof -->
+  <polygon points="96,18 170,78 22,78" fill="#6366f1"/>
+  <rect x="88" y="18" width="16" height="8" rx="2" fill="#fbbf24"/>
+</svg>

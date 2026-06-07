@@ -1,26 +1,47 @@
 /*
- * Cloudflare Worker – Spanisch-Lern-App für Familie Hoffknecht
- * Bindings: ASSETS (static PWA), DB (D1)
- * Secrets:  SESSION_SECRET
+ * Cloudflare Worker – Familie Hoffknecht
+ * Bedient zwei Domains:
+ *   familie.hoffknecht.de  → Familien-Portal (Login + Dashboard)
+ *   spanisch.hoffknecht.de → Spanisch-Lern-App
+ *
+ * Cookie: hk_session  mit Domain=.hoffknecht.de  →  SSO für alle Subdomains
+ * Bindings: ASSETS (static), DB (D1)
+ * Secrets:  SESSION_SECRET  (gleich in allen Apps!)
  */
 
 const SESSION_DAYS = 30;
+const COOKIE_NAME  = 'hk_session';
 const enc = new TextEncoder();
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const isPortal = url.hostname === 'familie.hoffknecht.de'
+                  || url.hostname === 'localhost';
+
     if (url.pathname.startsWith('/api/')) {
-      try { return await handleApi(request, env, url); }
+      try { return await handleApi(request, env, url, isPortal); }
       catch (e) { return json({ error: e.message || 'Serverfehler' }, 500); }
     }
+
+    // Portal-Domain: alle Pfade ohne Dateiendung → portal.html
+    if (isPortal) {
+      const hasExt = /\.[a-zA-Z0-9]+$/.test(url.pathname);
+      if (!hasExt) {
+        return env.ASSETS.fetch(
+          new Request(new URL('/portal.html', url.origin).href)
+        );
+      }
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
 
-async function handleApi(request, env, url) {
+/* ---- API-Routing ---- */
+async function handleApi(request, env, url, isPortal) {
   const path = url.pathname.replace(/\/+$/, '');
-  const m = request.method;
+  const m    = request.method;
 
   if (path === '/api/setup'  && m === 'POST') return setup(env);
   if (path === '/api/login'  && m === 'POST') return login(request, env, url);
@@ -38,7 +59,7 @@ async function handleApi(request, env, url) {
   return json({ error: 'Unbekannter Endpunkt' }, 404);
 }
 
-/* ---- Setup ---- */
+/* ---- Setup (einmalig) ---- */
 async function setup(env) {
   const row = await env.DB.prepare('SELECT COUNT(*) AS c FROM users').first();
   if (row && row.c > 0) return json({ error: 'Familie bereits eingerichtet.' }, 409);
@@ -73,12 +94,12 @@ async function login(request, env, url) {
   const user = await env.DB.prepare('SELECT * FROM users WHERE username_lc=?').bind(username).first();
   if (!user) return json({ error: 'Unbekannter Benutzer.' }, 401);
   if (!await verifyPin(pin, user.pin_hash, user.pin_salt)) return json({ error: 'Falsche PIN.' }, 401);
-  return withSession(json({ user: publicUser(user) }), user.id, env, url);
+  return withSession(json({ user: publicUser(user) }), user, env, url);
 }
 
 function logout(url) {
   const res = json({ ok: true });
-  res.headers.append('Set-Cookie', cookie('session', '', 0, url));
+  res.headers.append('Set-Cookie', buildCookie(COOKIE_NAME, '', 0, url));
   return res;
 }
 
@@ -99,16 +120,6 @@ async function leaderboard(env) {
   ).bind(weekAgo).all();
   const weekMap = Object.fromEntries(weekly.map(t => [t.user_id, t.total]));
 
-  // category breakdown per user
-  const { results: catRows } = await env.DB.prepare(
-    'SELECT user_id, category, SUM(correct) AS c, SUM(total) AS t FROM scores GROUP BY user_id, category'
-  ).all();
-  const catMap = {};
-  for (const r of catRows) {
-    if (!catMap[r.user_id]) catMap[r.user_id] = {};
-    catMap[r.user_id][r.category] = { correct: r.c, total: r.t };
-  }
-
   const rankings = users.map(u => ({
     id: u.id,
     displayName: u.display_name,
@@ -116,9 +127,8 @@ async function leaderboard(env) {
     avatar: u.avatar,
     totalPoints: totalMap[u.id] || 0,
     weekPoints:  weekMap[u.id]  || 0,
-    streak:      streakMap[u.id] ? streakMap[u.id].current_streak : 0,
-    bestStreak:  streakMap[u.id] ? streakMap[u.id].best_streak    : 0,
-    categories:  catMap[u.id] || {},
+    streak:      streakMap[u.id]?.current_streak || 0,
+    bestStreak:  streakMap[u.id]?.best_streak    || 0,
   })).sort((a, b) => b.totalPoints - a.totalPoints);
 
   return json({ rankings });
@@ -141,25 +151,20 @@ async function addScore(request, env, user) {
   ).bind(uid(), user.id, b.category||'unknown', b.mode||'cards',
     b.points||0, b.correct||0, b.total||0, now).run();
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today     = new Date().toISOString().slice(0, 10);
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const streak = await env.DB.prepare('SELECT * FROM streaks WHERE user_id=?').bind(user.id).first();
+  const streak    = await env.DB.prepare('SELECT * FROM streaks WHERE user_id=?').bind(user.id).first();
   let cur = 1, best = 1;
   if (streak) {
-    if (streak.last_date === today) {
-      cur = streak.current_streak; best = streak.best_streak;
-    } else if (streak.last_date === yesterday) {
-      cur = streak.current_streak + 1; best = Math.max(streak.best_streak, cur);
-    } else {
-      cur = 1; best = Math.max(streak.best_streak || 1, 1);
-    }
+    if      (streak.last_date === today)     { cur = streak.current_streak; best = streak.best_streak; }
+    else if (streak.last_date === yesterday) { cur = streak.current_streak + 1; best = Math.max(streak.best_streak, cur); }
+    else                                      { cur = 1; best = Math.max(streak.best_streak || 1, 1); }
   }
   await env.DB.prepare(
     `INSERT INTO streaks (user_id,last_date,current_streak,best_streak) VALUES (?,?,?,?)
      ON CONFLICT(user_id) DO UPDATE SET last_date=excluded.last_date,
      current_streak=excluded.current_streak, best_streak=excluded.best_streak`
   ).bind(user.id, today, cur, best).run();
-
   return json({ ok: true, streak: cur });
 }
 
@@ -176,37 +181,49 @@ async function changePin(request, env, user) {
 
 /* ---- Session ---- */
 async function currentUser(request, env) {
-  const token = getCookie(request, 'session');
+  const token = getCookie(request, COOKIE_NAME);
   if (!token) return null;
-  const userId = await verifyToken(token, env);
-  if (!userId) return null;
-  return env.DB.prepare('SELECT * FROM users WHERE id=?').bind(userId).first();
+  const payload = await verifyToken(token, env);
+  if (!payload) return null;
+  return env.DB.prepare('SELECT * FROM users WHERE id=?').bind(payload.u).first();
 }
-function withSession(res, userId, env, url) {
-  return signToken(userId, env).then(token => {
-    res.headers.append('Set-Cookie', cookie('session', token, SESSION_DAYS * 86400, url));
+
+function withSession(res, user, env, url) {
+  return signToken(user, env).then(token => {
+    res.headers.append('Set-Cookie', buildCookie(COOKIE_NAME, token, SESSION_DAYS * 86400, url));
     return res;
   });
 }
-async function signToken(userId, env) {
+
+async function signToken(user, env) {
   const exp = Date.now() + SESSION_DAYS * 86400000;
-  const payload = b64url(JSON.stringify({ u: userId, e: exp }));
+  const payload = b64url(JSON.stringify({
+    u: user.id,
+    n: user.username,
+    d: user.display_name,
+    a: user.avatar,
+    c: user.color,
+    e: exp,
+  }));
   return payload + '.' + await hmac(payload, env);
 }
+
 async function verifyToken(token, env) {
-  const [payload, sig] = token.split('.');
-  if (!payload || !sig) return null;
+  const dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  const payload = token.slice(0, dot);
+  const sig     = token.slice(dot + 1);
   if (!timingSafeEqual(sig, await hmac(payload, env))) return null;
   try {
-    const { u, e } = JSON.parse(unb64url(payload));
-    if (!u || !e || Date.now() > e) return null;
-    return u;
+    const data = JSON.parse(unb64url(payload));
+    if (!data.u || !data.e || Date.now() > data.e) return null;
+    return data;
   } catch { return null; }
 }
 
 /* ---- Crypto ---- */
 function sessionKey(env) {
-  const secret = env.SESSION_SECRET || 'dev-secret-spanisch-hoffknecht';
+  const secret = env.SESSION_SECRET || 'dev-secret-hoffknecht-familie';
   return crypto.subtle.importKey('raw', enc.encode(secret),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }
@@ -217,7 +234,7 @@ async function hmac(data, env) {
 }
 async function hashPin(pin, saltHex) {
   const salt = saltHex ? hexToBuf(saltHex) : crypto.getRandomValues(new Uint8Array(16));
-  const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const key  = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
     { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
   return { hash: bufToHex(bits), salt: bufToHex(salt.buffer || salt) };
@@ -241,9 +258,13 @@ async function readJson(req) { try { return await req.json(); } catch { return {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 }
-function cookie(name, value, maxAge, url) {
-  const secure = !/^(localhost|127\.0\.0\.1)/.test(url.hostname) ? '; Secure' : '';
-  return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+function buildCookie(name, value, maxAge, url) {
+  const isLocal  = /^(localhost|127\.0\.0\.1)/.test(url.hostname);
+  const secure   = isLocal ? '' : '; Secure';
+  // Domain=.hoffknecht.de erlaubt SSO auf ALLEN Subdomains
+  const domain   = (!isLocal && url.hostname.endsWith('.hoffknecht.de'))
+    ? '; Domain=.hoffknecht.de' : '';
+  return `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}${domain}`;
 }
 function getCookie(req, name) {
   const m = (req.headers.get('Cookie') || '').match(new RegExp('(?:^|; )' + name + '=([^;]*)'));

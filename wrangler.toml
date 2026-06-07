@@ -11,10 +11,15 @@ not_found_handling = "single-page-application"
 pattern = "spanisch.hoffknecht.de"
 custom_domain = true
 
+[[routes]]
+pattern = "familie.hoffknecht.de"
+custom_domain = true
+
 [[d1_databases]]
 binding = "DB"
 database_name = "spanisch"
 database_id = "REPLACE_WITH_D1_ID"
 
 # Secrets (per `wrangler secret put SESSION_SECRET`):
-#   SESSION_SECRET – HMAC-Schlüssel für Session-Tokens (Pflicht)
+#   SESSION_SECRET – HMAC-Schlüssel für Session-Tokens
+#                    MUSS identisch in jettemathe + vokabeln gesetzt sein!

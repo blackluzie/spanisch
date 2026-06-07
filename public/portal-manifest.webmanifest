@@ -1,0 +1,14 @@
+{
+  "name": "Familie Hoffknecht",
+  "short_name": "Familie",
+  "description": "Das Familienportal der Hoffknechts",
+  "start_url": "./portal.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f4f0",
+  "theme_color": "#4338ca",
+  "lang": "de",
+  "icons": [
+    { "src": "./icons/portal-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

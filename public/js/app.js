@@ -9,14 +9,10 @@ const S = {
   pinError: '',
   category: null,
   prevView: 'home',
-  // flashcards
   cards: [], cardIdx: 0, cardFlipped: false, cardResults: [],
-  // quiz
   quizQ: [], quizIdx: 0, quizSel: null, quizScore: 0,
   quizCorrectCount: 0, quizTimer: null, quizTime: 10,
-  // phrasebook
   phraseCategory: 'greeting',
-  // leaderboard
   boardTab: 'week',
 };
 
@@ -132,6 +128,7 @@ function renderLogin() {
       </div>
       <div class="member-grid">${cards}</div>
       ${pinArea}
+      <a href="https://familie.hoffknecht.de" style="color:#9ca3af;font-size:.8rem;margin-top:.5rem">← Zurück zum Portal</a>
     </div>`;
 }
 
@@ -163,7 +160,7 @@ async function doLogin() {
 
 /* === Home === */
 function renderHome() {
-  const u = S.user;
+  const u = P_user();
   const me = S.leaderboard?.rankings.find(r => r.id === u?.id);
   const pts = me?.totalPoints || 0;
   const streak = me?.streak || 0;
@@ -206,6 +203,8 @@ function renderHome() {
     </div>`;
 }
 
+function P_user() { return S.user; }
+
 /* === Categories === */
 function renderCategories(mode) {
   const cards = CATEGORIES.map(cat =>
@@ -233,17 +232,13 @@ function renderCategories(mode) {
 function startMode(mode, catId) {
   S.prevView = mode === 'learn' ? 'categories-learn' : 'categories-quiz';
   S.category = catId;
-  const all = catId === 'all'
-    ? Object.values(VOCAB).flat()
-    : (VOCAB[catId] || []);
+  const all = catId === 'all' ? Object.values(VOCAB).flat() : (VOCAB[catId] || []);
   const words = [...all].sort(() => Math.random() - 0.5);
-
   if (mode === 'learn') {
     S.cards = words; S.cardIdx = 0; S.cardFlipped = false; S.cardResults = [];
     go('flashcards');
   } else {
-    const pool = words.slice(0, 15);
-    S.quizQ = pool; S.quizIdx = 0; S.quizSel = null;
+    S.quizQ = words.slice(0, 15); S.quizIdx = 0; S.quizSel = null;
     S.quizScore = 0; S.quizCorrectCount = 0; S.quizTime = 10;
     clearInterval(S.quizTimer);
     go('quiz');
@@ -255,12 +250,10 @@ function renderFlashcards() {
   if (!S.cards.length) return '<div style="padding:2rem;text-align:center">Keine Karten</div>';
   if (S.cardIdx >= S.cards.length) return '';
   const card = S.cards[S.cardIdx];
-  const total = S.cards.length;
-  const pct = Math.round((S.cardIdx / total) * 100);
-
+  const pct = Math.round((S.cardIdx / S.cards.length) * 100);
   return `
     <div class="flashcard-wrap">
-      <div class="fc-progress-text">${S.cardIdx + 1} / ${total}</div>
+      <div class="fc-progress-text">${S.cardIdx + 1} / ${S.cards.length}</div>
       <div class="fc-progress-bar"><div class="fc-progress-fill" style="width:${pct}%"></div></div>
       <div class="fc-card-scene" onclick="flipCard()">
         <div class="fc-card${S.cardFlipped ? ' flipped' : ''}">
@@ -291,22 +284,18 @@ function answerCard(correct) {
   S.cardIdx++;
   S.cardFlipped = false;
   if (S.cardIdx >= S.cards.length) {
-    const pts  = S.cardResults.filter(Boolean).length * 5;
     const corr = S.cardResults.filter(Boolean).length;
-    api.addScore(S.category, 'cards', pts, corr, S.cards.length)
+    api.addScore(S.category, 'cards', corr * 5, corr, S.cards.length)
       .then(res => { if (res.streak) S.streak = res.streak; });
     go('flashcards-result');
-  } else {
-    render();
-  }
+  } else render();
 }
 
 /* === Quiz === */
-// Cache quiz options per question index to keep them stable across re-renders
-const _quizOptCache = {};
+const _qOptCache = {};
 function getOpts(idx) {
-  if (!_quizOptCache[idx]) _quizOptCache[idx] = getQuizOptions(S.quizQ[idx], S.category);
-  return _quizOptCache[idx];
+  if (!_qOptCache[idx]) _qOptCache[idx] = getQuizOptions(S.quizQ[idx], S.category);
+  return _qOptCache[idx];
 }
 
 function renderQuiz() {
@@ -315,16 +304,14 @@ function renderQuiz() {
   const q = S.quizQ[S.quizIdx];
   const opts = getOpts(S.quizIdx);
   const timerPct = Math.round((S.quizTime / 10) * 100);
-
   const optHtml = opts.map((opt, i) => {
     let cls = '';
     if (S.quizSel !== null) {
-      if (opt.es === q.es)                        cls = 'correct';
+      if (opt.es === q.es) cls = 'correct';
       else if (i === S.quizSel && opt.es !== q.es) cls = 'wrong';
     }
     return `<button class="quiz-opt ${cls}" onclick="selectQuiz(${i})" ${S.quizSel!==null?'disabled':''}>${esc(opt.es)}</button>`;
   }).join('');
-
   return `
     <div class="quiz-wrap">
       <div class="quiz-timer-bar"><div class="quiz-timer-fill" id="qtimer" style="width:${timerPct}%"></div></div>
@@ -342,9 +329,7 @@ function selectQuiz(idx) {
   clearInterval(S.quizTimer);
   S.quizSel = idx;
   const q = S.quizQ[S.quizIdx];
-  const opts = getOpts(S.quizIdx);
-  const correct = opts[idx]?.es === q.es;
-  if (correct) {
+  if (getOpts(S.quizIdx)[idx]?.es === q.es) {
     S.quizScore += 10 + Math.floor(S.quizTime / 10 * 5);
     S.quizCorrectCount++;
   }
@@ -353,17 +338,12 @@ function selectQuiz(idx) {
 }
 
 function advanceQuiz() {
-  S.quizIdx++;
-  S.quizSel = null;
-  S.quizTime = 10;
+  S.quizIdx++; S.quizSel = null; S.quizTime = 10;
   if (S.quizIdx >= S.quizQ.length) {
     api.addScore(S.category, 'quiz', S.quizScore, S.quizCorrectCount, S.quizQ.length)
       .then(res => { if (res.streak) S.streak = res.streak; });
     go('quiz-result');
-  } else {
-    render();
-    startQuizTimer();
-  }
+  } else { render(); startQuizTimer(); }
 }
 
 function startQuizTimer() {
@@ -375,8 +355,7 @@ function startQuizTimer() {
     if (el) el.style.width = Math.round((S.quizTime / 10) * 100) + '%';
     if (S.quizTime <= 0) {
       clearInterval(S.quizTimer);
-      S.quizSel = -1; // time's up
-      render();
+      S.quizSel = -1; render();
       setTimeout(advanceQuiz, 1000);
     }
   }, 1000);
@@ -389,34 +368,22 @@ function renderResult(mode) {
   const total   = isQuiz ? S.quizQ.length : S.cards.length;
   const pts     = isQuiz ? S.quizScore : correct * 5;
   const pct     = total > 0 ? Math.round((correct / total) * 100) : 0;
-
   let trophy = '🏅', msg = 'Gut gemacht!';
   if (pct >= 90) { trophy = '🏆'; msg = '¡Excelente! Perfecto!'; }
   else if (pct >= 70) { trophy = '🥇'; msg = '¡Muy bien! Super!'; }
   else if (pct >= 50) { trophy = '🥈'; msg = '¡Bien! Weiter so!'; }
   else { trophy = '💪'; msg = '¡Vamos! Noch mal!'; }
-
-  const nextMode = isQuiz ? 'quiz' : 'learn';
   return `
     <div class="result-page">
       <div class="result-trophy">${trophy}</div>
       <div class="result-title">${msg}</div>
       <div class="result-sub">${esc(catName())} – ${isQuiz ? 'Quiz' : 'Vokabelkarten'}</div>
       <div class="result-stats">
-        <div class="result-stat">
-          <div class="result-stat-val">${pts}</div>
-          <div class="result-stat-lbl">Punkte</div>
-        </div>
-        <div class="result-stat">
-          <div class="result-stat-val">${correct}/${total}</div>
-          <div class="result-stat-lbl">Richtig</div>
-        </div>
-        <div class="result-stat">
-          <div class="result-stat-val">${pct}%</div>
-          <div class="result-stat-lbl">Quote</div>
-        </div>
+        <div class="result-stat"><div class="result-stat-val">${pts}</div><div class="result-stat-lbl">Punkte</div></div>
+        <div class="result-stat"><div class="result-stat-val">${correct}/${total}</div><div class="result-stat-lbl">Richtig</div></div>
+        <div class="result-stat"><div class="result-stat-val">${pct}%</div><div class="result-stat-lbl">Quote</div></div>
       </div>
-      <button class="result-btn" onclick="startMode('${nextMode}','${S.category}')">&#x1F504; Nochmal spielen</button>
+      <button class="result-btn" onclick="startMode('${mode}','${S.category}')">&#x1F504; Nochmal</button>
       <button class="result-btn secondary" onclick="go('home')">Zur Startseite</button>
     </div>`;
 }
@@ -427,7 +394,6 @@ function renderPhrasebook() {
     `<button class="phrase-cat-btn${S.phraseCategory===c.id?' active':''}" onclick="setPhraseCategory('${c.id}')">
       ${c.emoji} ${esc(c.name)}
     </button>`).join('');
-
   const items = (VOCAB[S.phraseCategory] || []).map(v =>
     `<div class="phrase-item">
       <div class="phrase-es">${esc(v.es)}</div>
@@ -435,26 +401,20 @@ function renderPhrasebook() {
       ${v.cat ? `<div class="phrase-cat">🏴 Kat.: ${esc(v.cat)}</div>` : ''}
       ${v.tip ? `<span class="phrase-tip">💡 ${esc(v.tip)}</span>` : ''}
     </div>`).join('');
-
   return `
     <div class="main-scroll">
       <div class="phrase-cats">${catBtns}</div>
       <div class="phrase-list">${items}</div>
     </div>`;
 }
-
 function setPhraseCategory(id) { S.phraseCategory = id; render(); }
 
-/* === Leaderboard (synchronous, data pre-loaded) === */
+/* === Leaderboard === */
 function renderLeaderboard() {
-  if (!S.leaderboard) {
-    return '<div style="padding:2rem;text-align:center;color:#9ca3af">Lade Rangliste…</div>';
-  }
-  const rankings = S.leaderboard.rankings || [];
+  if (!S.leaderboard) return '<div style="padding:2rem;text-align:center;color:#9ca3af">Lade…</div>';
   const tab = S.boardTab;
-  const medals = ['🥇','🥈','🥉','👀','👀'];
-
-  const rows = rankings.map((r, i) => {
+  const medals = ['🥇','🥈','🥉','👍','👍'];
+  const rows = (S.leaderboard.rankings || []).map((r, i) => {
     const pts = tab === 'week' ? r.weekPoints : r.totalPoints;
     return `
       <div class="board-row${r.id === S.user?.id ? ' me' : ''}">
@@ -462,17 +422,14 @@ function renderLeaderboard() {
         <div class="board-avatar">${r.avatar}</div>
         <div class="board-info">
           <div class="board-name" style="color:${r.color}">${esc(r.displayName)}</div>
-          <div class="board-meta">🔥 ${r.streak} Tage • Beststreak: ${r.bestStreak}</div>
+          <div class="board-meta">🔥 ${r.streak} Tage · Beststreak: ${r.bestStreak}</div>
         </div>
         <div class="board-pts" style="color:${r.color}">${pts}<span> Pkt</span></div>
       </div>`;
   }).join('');
-
   return `
     <div class="main-scroll">
-      <div style="padding:1.25rem 1.25rem .5rem">
-        <h2 style="font-size:1.2rem;font-weight:800">🏆 Familie Hoffknecht</h2>
-      </div>
+      <div style="padding:1.25rem 1.25rem .5rem"><h2 style="font-size:1.2rem;font-weight:800">🏆 Familie Hoffknecht</h2></div>
       <div class="board-tabs">
         <button class="board-tab${tab==='week'?' active':''}" onclick="setBoardTab('week')">Diese Woche</button>
         <button class="board-tab${tab==='all'?' active':''}"  onclick="setBoardTab('all')">Gesamt</button>
@@ -480,7 +437,6 @@ function renderLeaderboard() {
       <div class="board-list">${rows}</div>
     </div>`;
 }
-
 function setBoardTab(t) { S.boardTab = t; render(); }
 
 /* === Settings === */
@@ -505,6 +461,7 @@ function renderSettings() {
             <div style="color:#c60b1e;font-weight:700">→</div>
           </div>
         </div>
+        <a href="https://familie.hoffknecht.de" class="settings-btn" style="display:block;text-align:center;text-decoration:none;background:#eef2ff;color:#4338ca;margin-bottom:.5rem">🏠 Zum Portal</a>
         <button class="settings-btn danger" onclick="doLogout()">🚪 Abmelden</button>
       </div>
     </div>`;
@@ -515,18 +472,12 @@ function renderPinChange() {
   return `
     <div class="main-scroll">
       <div class="pin-change-form">
-        <div class="pin-input-row">
-          <label>Aktuelle PIN</label>
-          <input type="password" inputmode="numeric" maxlength="6" id="pin-old" placeholder="••••">
-        </div>
-        <div class="pin-input-row">
-          <label>Neue PIN (4–6 Ziffern)</label>
-          <input type="password" inputmode="numeric" maxlength="6" id="pin-new" placeholder="••••">
-        </div>
-        <div class="pin-input-row">
-          <label>Neue PIN bestätigen</label>
-          <input type="password" inputmode="numeric" maxlength="6" id="pin-new2" placeholder="••••">
-        </div>
+        <div class="pin-input-row"><label>Aktuelle PIN</label>
+          <input type="password" inputmode="numeric" maxlength="6" id="pin-old" placeholder="••••"></div>
+        <div class="pin-input-row"><label>Neue PIN (4–6 Ziffern)</label>
+          <input type="password" inputmode="numeric" maxlength="6" id="pin-new" placeholder="••••"></div>
+        <div class="pin-input-row"><label>Neue PIN bestätigen</label>
+          <input type="password" inputmode="numeric" maxlength="6" id="pin-new2" placeholder="••••"></div>
         <button class="settings-btn primary" onclick="submitPinChange()">🔒 PIN ändern</button>
         <div id="pin-msg" style="text-align:center;font-size:.875rem;color:#c60b1e;margin-top:.5rem"></div>
       </div>
@@ -538,12 +489,12 @@ async function submitPinChange() {
   const nw   = document.getElementById('pin-new')?.value;
   const nw2  = document.getElementById('pin-new2')?.value;
   const msg  = document.getElementById('pin-msg');
-  if (!old || !nw || !nw2)  { msg.textContent = 'Alle Felder ausfüllen.'; return; }
-  if (nw !== nw2)            { msg.textContent = 'Neue PIN stimmt nicht überein.'; return; }
-  if (!/^\d{4,6}$/.test(nw)) { msg.textContent = 'PIN: nur 4–6 Ziffern.'; return; }
+  if (!old||!nw||!nw2)     { msg.textContent='Alle Felder ausfüllen.'; return; }
+  if (nw !== nw2)           { msg.textContent='Neue PIN stimmt nicht überein.'; return; }
+  if (!/^\d{4,6}$/.test(nw)){ msg.textContent='PIN: nur 4–6 Ziffern.'; return; }
   const res = await api.changePin(old, nw);
-  if (res.ok) { toast('✅ PIN erfolgreich geändert!'); go('settings'); }
-  else { msg.textContent = res.error || 'Fehler beim Ändern.'; }
+  if (res.ok) { toast('✅ PIN geändert!'); go('settings'); }
+  else { msg.textContent = res.error || 'Fehler'; }
 }
 
 /* === Helpers === */
@@ -567,11 +518,10 @@ async function doLogout() {
 }
 
 function go(view) {
-  const stayViews = ['login','flashcards','quiz','flashcards-result','quiz-result','pin-change'];
-  if (!stayViews.includes(S.view)) S.prevView = S.view;
+  const stay = ['login','flashcards','quiz','flashcards-result','quiz-result','pin-change'];
+  if (!stay.includes(S.view)) S.prevView = S.view;
   clearInterval(S.quizTimer);
-  // clear quiz option cache when starting new quiz
-  if (view === 'quiz') Object.keys(_quizOptCache).forEach(k => delete _quizOptCache[k]);
+  if (view === 'quiz') Object.keys(_qOptCache).forEach(k => delete _qOptCache[k]);
   S.view = view;
   render();
   if (view === 'home' || view === 'leaderboard') loadLeaderboard().then(render);
@@ -588,16 +538,10 @@ function toast(msg) {
   _toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-/* === Init === */
 async function init() {
   const res = await api.me();
-  if (res.user) {
-    S.user = res.user;
-    await loadLeaderboard();
-    go('home');
-  } else {
-    go('login');
-  }
+  if (res.user) { S.user = res.user; await loadLeaderboard(); go('home'); }
+  else { go('login'); }
 }
 
 init();
