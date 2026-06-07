@@ -1,0 +1,20 @@
+name = "spanisch"
+main = "src/worker.js"
+compatibility_date = "2024-11-06"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[routes]]
+pattern = "spanisch.hoffknecht.de"
+custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spanisch"
+database_id = "REPLACE_WITH_D1_ID"
+
+# Secrets (per `wrangler secret put SESSION_SECRET`):
+#   SESSION_SECRET – HMAC-Schlüssel für Session-Tokens (Pflicht)
