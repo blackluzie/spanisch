@@ -18,7 +18,7 @@ custom_domain = true
 [[d1_databases]]
 binding = "DB"
 database_name = "spanisch"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "5792e744-84aa-47a3-9900-9794ed778073"
 
 # Secrets (per `wrangler secret put SESSION_SECRET`):
 #   SESSION_SECRET – HMAC-Schlüssel für Session-Tokens
