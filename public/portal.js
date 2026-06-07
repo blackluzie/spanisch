@@ -35,6 +35,8 @@ const P = {
   loginUser: null,
   pin: '',
   pinError: '',
+  showPin: false,
+  pinForm: { old: '', n1: '', n2: '', err: '', ok: false, busy: false },
 };
 
 /* === API === */
@@ -58,7 +60,7 @@ function pRender() {
   const el = document.getElementById('portal');
   switch (P.view) {
     case 'login':     el.innerHTML = renderLogin(); break;
-    case 'dashboard': el.innerHTML = renderDashboard(); break;
+    case 'dashboard': el.innerHTML = renderDashboard() + (P.showPin ? renderPinModal() : ''); break;
     default:          el.innerHTML = '<div class="p-loading"><div class="p-loading-icon">🏠</div></div>';
   }
 }
@@ -126,7 +128,10 @@ function renderDashboard() {
             <div class="p-topbar-sub">familie.hoffknecht.de</div>
           </div>
         </div>
-        <button class="p-topbar-logout" onclick="pLogout()">Abmelden</button>
+        <div class="p-topbar-actions">
+          <button class="p-topbar-gear" title="PIN ändern" onclick="pOpenPin()">⚙️</button>
+          <button class="p-topbar-logout" onclick="pLogout()">Abmelden</button>
+        </div>
       </div>
       <div class="p-dash-scroll">
         <div class="p-greeting-card" style="--mc:${mc}">
@@ -138,6 +143,42 @@ function renderDashboard() {
         <div class="p-soon">
           <div class="p-soon-icon">🔜</div>
           <div style="margin-top:.3rem">Mehr Apps kommen bald!</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderPinModal() {
+  const f = P.pinForm;
+  const inputStyle = 'width:100%;box-sizing:border-box;font-size:1.5rem;letter-spacing:.4em;text-align:center;padding:.7rem;margin-top:.4rem;border:2px solid #e5e7eb;border-radius:.7rem;outline:none;';
+  if (f.ok) {
+    return `
+    <div class="p-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1.2rem;z-index:50" onclick="pClosePin(event)">
+      <div style="background:#fff;border-radius:1.2rem;padding:1.6rem;max-width:340px;width:100%;text-align:center" onclick="event.stopPropagation()">
+        <div style="font-size:2.6rem">✅</div>
+        <div style="font-size:1.15rem;font-weight:700;margin:.5rem 0 1rem">PIN geändert!</div>
+        <button onclick="pClosePin()" style="background:#4338ca;color:#fff;border:none;border-radius:.7rem;padding:.7rem 1.4rem;font-size:1rem;font-weight:600;width:100%">Fertig</button>
+      </div>
+    </div>`;
+  }
+  return `
+    <div class="p-modal-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1.2rem;z-index:50" onclick="pClosePin(event)">
+      <div style="background:#fff;border-radius:1.2rem;padding:1.5rem;max-width:340px;width:100%" onclick="event.stopPropagation()">
+        <div style="font-size:1.2rem;font-weight:700;text-align:center;margin-bottom:.3rem">🔑 PIN ändern</div>
+        <div style="font-size:.8rem;color:#9ca3af;text-align:center;margin-bottom:1rem">4 bis 6 Ziffern</div>
+        ${f.err ? `<div style="background:#fee2e2;color:#b91c1c;font-size:.85rem;padding:.5rem .7rem;border-radius:.6rem;margin-bottom:.8rem;text-align:center">${f.err}</div>` : ''}
+        <label style="font-size:.85rem;color:#6b7280;font-weight:600">Aktuelle PIN
+          <input id="pin-old" type="tel" inputmode="numeric" maxlength="6" value="${f.old}" oninput="pPinInput('old',this.value)" style="${inputStyle}">
+        </label>
+        <label style="font-size:.85rem;color:#6b7280;font-weight:600;display:block;margin-top:.9rem">Neue PIN
+          <input id="pin-n1" type="tel" inputmode="numeric" maxlength="6" value="${f.n1}" oninput="pPinInput('n1',this.value)" style="${inputStyle}">
+        </label>
+        <label style="font-size:.85rem;color:#6b7280;font-weight:600;display:block;margin-top:.9rem">Neue PIN wiederholen
+          <input id="pin-n2" type="tel" inputmode="numeric" maxlength="6" value="${f.n2}" oninput="pPinInput('n2',this.value)" style="${inputStyle}">
+        </label>
+        <div style="display:flex;gap:.6rem;margin-top:1.3rem">
+          <button onclick="pClosePin()" style="flex:1;background:#f3f4f6;color:#374151;border:none;border-radius:.7rem;padding:.75rem;font-size:1rem;font-weight:600">Abbrechen</button>
+          <button onclick="pSubmitPin()" ${f.busy?'disabled':''} style="flex:1;background:#4338ca;color:#fff;border:none;border-radius:.7rem;padding:.75rem;font-size:1rem;font-weight:600;opacity:${f.busy?'.6':'1'}">${f.busy?'…':'Speichern'}</button>
         </div>
       </div>
     </div>`;
@@ -170,6 +211,38 @@ async function pLogout() {
   await pApi.logout();
   P.user = null; P.loginUser = null; P.pin = '';
   P.view = 'login'; pRender();
+}
+
+/* === PIN-Änderung === */
+function pOpenPin() {
+  P.showPin = true;
+  P.pinForm = { old: '', n1: '', n2: '', err: '', ok: false, busy: false };
+  pRender();
+}
+function pClosePin(event) {
+  if (event && event.type === 'click' && event.target !== event.currentTarget) return;
+  P.showPin = false;
+  pRender();
+}
+function pPinInput(field, value) {
+  P.pinForm[field] = value.replace(/\D/g, '').slice(0, 6);
+  // keine Komplett-Neurender beim Tippen – Wert bleibt im Input erhalten
+}
+async function pSubmitPin() {
+  const f = P.pinForm;
+  // Werte direkt aus den Feldern lesen (falls oninput-State knapp)
+  const oldP = (document.getElementById('pin-old')?.value || f.old).replace(/\D/g,'');
+  const n1   = (document.getElementById('pin-n1')?.value  || f.n1 ).replace(/\D/g,'');
+  const n2   = (document.getElementById('pin-n2')?.value  || f.n2 ).replace(/\D/g,'');
+  f.old = oldP; f.n1 = n1; f.n2 = n2;
+  if (!/^\d{4,6}$/.test(oldP)) { f.err = 'Bitte aktuelle PIN eingeben.'; pRender(); return; }
+  if (!/^\d{4,6}$/.test(n1))   { f.err = 'Neue PIN muss 4–6 Ziffern haben.'; pRender(); return; }
+  if (n1 !== n2)              { f.err = 'Die neuen PINs stimmen nicht überein.'; pRender(); return; }
+  f.err = ''; f.busy = true; pRender();
+  const res = await pApi.pin(oldP, n1);
+  f.busy = false;
+  if (res.ok) { f.ok = true; pRender(); }
+  else        { f.err = res.error || 'Fehler beim Ändern.'; pRender(); }
 }
 
 /* === Init === */
