@@ -195,17 +195,22 @@ function withSession(res, user, env, url) {
   });
 }
 
-async function signToken(user, env) {
-  const exp = Date.now() + SESSION_DAYS * 86400000;
-  const payload = b64url(JSON.stringify({
-    u: user.id,
-    n: user.username,
-    d: user.display_name,
-    a: user.avatar,
-    c: user.color,
-    e: exp,
-  }));
-  return payload + '.' + await hmac(payload, env);
+async function verifyToken(token, env) {
+  const dot = token.lastIndexOf('.');
+  if (dot < 0) return null;
+  const payload = token.slice(0, dot);
+  const sig     = token.slice(dot + 1);
+  if (!timingSafeEqual(sig, await hmac(payload, env))) return null;
+  try {
+    let b64 = payload.replace(/-/g,'+').replace(/_/g,'/');
+    while (b64.length % 4) b64 += '=';
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    if (!data.u || !data.e || Date.now() > data.e) return null;
+    return data;
+  } catch { return null; }
 }
 
 async function verifyToken(token, env) {
