@@ -28,21 +28,6 @@ jobs:
 
       - run: npm install
 
-      - name: D1-Datenbank sicherstellen
-        run: |
-          set -e
-          PARSE='let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const i=s.indexOf("[");const j=s.lastIndexOf("]");if(i<0||j<0)return;try{const a=JSON.parse(s.slice(i,j+1));const db=a.find(x=>x.name==="spanisch");process.stdout.write((db&&(db.uuid||db.database_id))||"")}catch{}})'
-          find_id() { npx wrangler d1 list --json 2>/dev/null | node -e "$PARSE"; }
-          ID="$(find_id || true)"
-          if [ -z "$ID" ]; then
-            echo "Lege D1 an..."
-            npx wrangler d1 create spanisch || true
-            ID="$(find_id || true)"
-          fi
-          if [ -z "$ID" ]; then echo "FEHLER: keine D1-ID"; exit 1; fi
-          sed -i "s/REPLACE_WITH_D1_ID/$ID/" wrangler.toml
-          echo "D1 ID = $ID"
-
       - name: Schema anwenden
         run: npx wrangler d1 execute spanisch --remote --file=./schema.sql || true
 
