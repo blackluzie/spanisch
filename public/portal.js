@@ -9,21 +9,21 @@ const MEMBERS = [
 
 const APPS = {
   martin: [
-    { name: '¡Español!', desc: 'Costa Brava 2025',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
+    { name: '¡Español!', desc: 'Costa Brava 2026',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
     { name: 'Vokabeln',  desc: 'Sprachen lernen',      url: 'https://vokabeln.hoffknecht.de', icon: '📚', color: '#4f46e5' },
   ],
   jane: [
-    { name: '¡Español!', desc: 'Costa Brava 2025',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
+    { name: '¡Español!', desc: 'Costa Brava 2026',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
     { name: 'Vokabeln',  desc: 'Sprachen lernen',      url: 'https://vokabeln.hoffknecht.de', icon: '📚', color: '#4f46e5' },
   ],
   matti: [
-    { name: '¡Español!', desc: 'Costa Brava 2025',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
+    { name: '¡Español!', desc: 'Costa Brava 2026',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
     { name: 'Mathe',     desc: 'Aufgaben für die Schule', url: 'https://jette.hoffknecht.de', icon: '🍎', color: '#059669' },
     { name: 'Vokabeln',  desc: 'Sprachen lernen',      url: 'https://vokabeln.hoffknecht.de', icon: '📚', color: '#4f46e5' },
   ],
   jette: [
     { name: 'Mathe',     desc: 'Meine Mathe-App ✨',   url: 'https://jette.hoffknecht.de', icon: '🍎', color: '#10b981' },
-    { name: '¡Español!', desc: 'Costa Brava 2025',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
+    { name: '¡Español!', desc: 'Costa Brava 2026',    url: 'https://spanisch.hoffknecht.de', icon: '🇪🇸', color: '#c60b1e' },
     { name: 'Vokabeln',  desc: 'Sprachen lernen',      url: 'https://vokabeln.hoffknecht.de', icon: '📚', color: '#4f46e5' },
   ],
 };

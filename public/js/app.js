@@ -124,7 +124,7 @@ function renderLogin() {
       <div class="login-logo">🇪🇸</div>
       <div class="login-title">
         <h1>¡Hola! Spanisch lernen</h1>
-        <p>Costa Brava 2025 – Familie Hoffknecht</p>
+        <p>Costa Brava 2026 – Familie Hoffknecht</p>
       </div>
       <div class="member-grid">${cards}</div>
       ${pinArea}
