@@ -1,0 +1,28 @@
+name = "spanisch"
+main = "src/worker.js"
+compatibility_date = "2024-11-06"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# Worker MUSS vor den statischen Assets laufen, sonst wird familie.hoffknecht.de/
+# direkt auf index.html (Spanisch) gemappt und die Portal-Weiche im Worker greift nie.
+run_worker_first = true
+
+[[routes]]
+pattern = "spanisch.hoffknecht.de"
+custom_domain = true
+
+[[routes]]
+pattern = "familie.hoffknecht.de"
+custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spanisch"
+database_id = "5792e744-84aa-47a3-9900-9794ed778073"
+
+# Secrets (per `wrangler secret put SESSION_SECRET`):
+#   SESSION_SECRET – HMAC-Schlüssel für Session-Tokens
+#                    MUSS identisch in jettemathe + vokabeln gesetzt sein!
